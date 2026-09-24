@@ -10,6 +10,7 @@ All notable changes to this project are documented here.
 - Modbus TCP holding-register scanning.
 - AWS IoT MQTT/TLS publishing with reconnect handling.
 - Offline configuration validation mode.
+- Safe demo payload mode with no network access.
 - One-sample commissioning mode.
 - Unit tests, CI baseline, security notes, and pre-commit protection.
 

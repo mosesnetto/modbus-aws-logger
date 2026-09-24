@@ -10,6 +10,7 @@ commitments.
 - AWS IoT MQTT/TLS publishing
 - Reconnect handling
 - Offline validation mode
+- Safe demo payload mode
 - Unit-test and CI baseline
 
 ## 0.2.0 — Developer experience

@@ -38,6 +38,7 @@ This project replaces that fragile script with a small, testable foundation:
 - UTC timestamps and machine identity in every payload.
 - Environment-based configuration with no credentials in source control.
 - Offline `--check-config` validation mode.
+- Safe `--demo` mode that requires no PLC, AWS account, or certificates.
 - One-sample `--once` mode for controlled commissioning.
 - Local virtual environment and reproducible pinned dependencies.
 - Pre-commit protection against common secret-file types.
@@ -84,7 +85,15 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Configure locally
+### 3. See a safe demo payload
+
+```powershell
+python modbus_aws_logger.py --demo
+```
+
+This mode does not contact a PLC or AWS.
+
+### 4. Configure locally
 
 ```powershell
 Copy-Item .env.example .env
@@ -93,13 +102,13 @@ Copy-Item .env.example .env
 Edit `.env` with your own endpoint, PLC address, topic, and certificate paths.
 The `.env` file is ignored by Git and must never be committed.
 
-### 4. Validate without connecting
+### 5. Validate without connecting
 
 ```powershell
 python modbus_aws_logger.py --check-config
 ```
 
-### 5. Run one controlled sample
+### 6. Run one controlled sample
 
 Only after the endpoint, PLC, topic, and certificates have been verified:
 
@@ -107,7 +116,7 @@ Only after the endpoint, PLC, topic, and certificates have been verified:
 python modbus_aws_logger.py --once
 ```
 
-### 6. Run continuously
+### 7. Run continuously
 
 ```powershell
 python modbus_aws_logger.py

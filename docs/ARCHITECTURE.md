@@ -42,4 +42,5 @@ Environment / local .env
 - MQTT failure is retried without stopping the process.
 - A failed cycle is logged and the loop continues.
 - `--check-config` never opens a network connection.
+- `--demo` returns a safe sample payload without configuration or network access.
 - `--once` performs exactly one read/publish cycle and then exits.

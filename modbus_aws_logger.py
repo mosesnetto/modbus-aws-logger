@@ -24,6 +24,7 @@ from pymodbus.client import ModbusTcpClient
 load_dotenv(Path(__file__).with_name(".env"))
 
 LOGGER = logging.getLogger("modbus_aws_logger")
+__version__ = "0.1.0"
 
 
 class ConfigError(RuntimeError):
@@ -239,6 +240,16 @@ def run(config: dict[str, Any], once: bool = False) -> int:
     return 0
 
 
+def demo_payload() -> dict[str, Any]:
+    """Return a safe sample payload without contacting a PLC or AWS."""
+    return {
+        "machine": "Demo_Machine",
+        "timestamp": int(time.time()),
+        "datetime": datetime.now(timezone.utc).isoformat(),
+        "registers": {"R0": 12, "R1": 34, "R2": 56},
+    }
+
+
 def check_config(config: dict[str, Any]) -> None:
     # Do not print secret values or file contents.
     print("Configuration is valid.")
@@ -253,9 +264,19 @@ def check_config(config: dict[str, Any]) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
+    )
+    parser.add_argument(
         "--check-config",
         action="store_true",
         help="Validate environment and certificate paths without connecting.",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Print a safe sample payload without connecting to a PLC or AWS.",
     )
     parser.add_argument(
         "--once",
@@ -267,6 +288,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.demo:
+        print(json.dumps(demo_payload(), indent=2))
+        return 0
     try:
         config = load_config()
         configure_logging(config["log_file"])

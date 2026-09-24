@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import paho.mqtt.client as mqtt
 
-from modbus_aws_logger import ConfigError, load_config, publish, read_plc
+from modbus_aws_logger import ConfigError, demo_payload, load_config, publish, read_plc
 
 
 class FakeModbusResult:
@@ -86,6 +86,11 @@ class ModbusLoggerTests(unittest.TestCase):
         self.assertTrue(publish(cloud, config, {"registers": {"R0": 1}}))
         self.assertEqual(cloud.calls[0][0], "test/topic")
         self.assertEqual(cloud.calls[0][2], 1)
+
+    def test_demo_payload_is_safe_and_network_free(self):
+        payload = demo_payload()
+        self.assertEqual(payload["machine"], "Demo_Machine")
+        self.assertEqual(payload["registers"]["R0"], 12)
 
     def test_missing_configuration_is_rejected(self):
         with patch.dict(os.environ, {}, clear=True):
