@@ -10,6 +10,8 @@ Do not make the repository public until every applicable item is complete.
 - [ ] Run unit tests and CI from a clean checkout.
 - [ ] Test PLC reconnect and AWS reconnect behavior.
 - [ ] Test malformed PLC data and broker failure paths.
+- [ ] Test SMTP delivery with an app password and verify reports contain no raw
+      register values or credentials.
 - [ ] Add a sanitized demo/simulator mode.
 - [ ] Publish support and security contact details.
 - [ ] Create a release tag and changelog.

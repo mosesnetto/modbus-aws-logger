@@ -21,6 +21,13 @@ from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 from pymodbus.client import ModbusTcpClient
 
+from email_sender import (
+    EmailNotifier,
+    SmtpConfig,
+    SmtpConfigError,
+    SmtpDeliveryError,
+)
+
 load_dotenv(Path(__file__).with_name(".env"))
 
 LOGGER = logging.getLogger("modbus_aws_logger")
@@ -194,7 +201,11 @@ def publish(client: mqtt.Client, config: dict[str, Any], payload: dict[str, Any]
     return False
 
 
-def run(config: dict[str, Any], once: bool = False) -> int:
+def run(
+    config: dict[str, Any],
+    once: bool = False,
+    notifier: EmailNotifier | None = None,
+) -> int:
     running = True
 
     def stop(signum: int, frame: Any) -> None:
@@ -208,21 +219,63 @@ def run(config: dict[str, Any], once: bool = False) -> int:
     cloud = mqtt_client(config["client_id"])
     configure_mqtt_tls(cloud, config)
     plc = connect_plc(config)
+    if plc is None and notifier is not None:
+        notifier.record_failure(
+            "connection",
+            "PLC connection failed",
+            datetime.now(timezone.utc).isoformat(),
+        )
     if not connect_mqtt(cloud, config, running):
+        if notifier is not None:
+            notifier.record_failure(
+                "connection",
+                "AWS MQTT connection failed",
+                datetime.now(timezone.utc).isoformat(),
+            )
+            notifier.stop()
+        if plc is not None:
+            plc.close()
         return 1
+
+    if notifier is not None:
+        notifier.start()
 
     try:
         while running:
             started = time.time()
             if plc is None or not getattr(plc, "connected", False):
                 LOGGER.warning("Reconnecting PLC")
+                if plc is not None:
+                    plc.close()
                 plc = connect_plc(config)
+                if plc is None and notifier is not None:
+                    notifier.record_failure(
+                        "connection",
+                        "PLC reconnect failed",
+                        datetime.now(timezone.utc).isoformat(),
+                    )
                 time.sleep(config["reconnect_delay"])
                 continue
 
             payload = read_plc(plc, config)
-            if payload is not None:
-                publish(cloud, config, payload)
+            if payload is None:
+                if notifier is not None:
+                    notifier.record_failure(
+                        "read",
+                        "PLC read failed",
+                        datetime.now(timezone.utc).isoformat(),
+                    )
+            else:
+                published = publish(cloud, config, payload)
+                if notifier is not None:
+                    if published:
+                        notifier.record_success(payload["datetime"])
+                    else:
+                        notifier.record_failure(
+                            "publish",
+                            "AWS MQTT publish failed",
+                            payload["datetime"],
+                        )
 
             if once:
                 break
@@ -236,6 +289,8 @@ def run(config: dict[str, Any], once: bool = False) -> int:
         cloud.loop_stop()
         cloud.disconnect()
         LOGGER.info("AWS MQTT disconnected")
+        if notifier is not None:
+            notifier.stop()
 
     return 0
 
@@ -250,7 +305,10 @@ def demo_payload() -> dict[str, Any]:
     }
 
 
-def check_config(config: dict[str, Any]) -> None:
+def check_config(
+    config: dict[str, Any],
+    notifier: EmailNotifier | None = None,
+) -> None:
     # Do not print secret values or file contents.
     print("Configuration is valid.")
     print(f"AWS endpoint: {config['aws_endpoint']}")
@@ -259,6 +317,8 @@ def check_config(config: dict[str, Any]) -> None:
     print(f"PLC: {config['plc_ip']}:{config['plc_port']} (unit {config['plc_unit']})")
     print(f"Registers: {config['register_count']}")
     print(f"Publish interval: {config['publish_interval']} seconds")
+    if notifier is not None:
+        notifier.check()
 
 
 def parse_args() -> argparse.Namespace:
@@ -283,6 +343,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Read and publish one sample, then exit.",
     )
+    parser.add_argument(
+        "--email-test",
+        action="store_true",
+        help="Send one SMTP test message and exit.",
+    )
     return parser.parse_args()
 
 
@@ -291,16 +356,32 @@ def main() -> int:
     if args.demo:
         print(json.dumps(demo_payload(), indent=2))
         return 0
+
     try:
+        if args.email_test:
+            smtp_config = SmtpConfig.from_env()
+            notifier = EmailNotifier(smtp_config)
+            configure_logging(Path(os.getenv("LOG_FILE", "iot_gateway.log")).expanduser())
+            if not notifier.enabled:
+                print("SMTP is disabled; set SMTP_ENABLED=true before testing.")
+                return 2
+            notifier.send_test()
+            return 0
+
         config = load_config()
+        smtp_config = SmtpConfig.from_env()
+        notifier = EmailNotifier(smtp_config)
         configure_logging(config["log_file"])
         if args.check_config:
-            check_config(config)
+            check_config(config, notifier)
             return 0
-        return run(config, once=args.once)
-    except ConfigError as exc:
+        return run(config, once=args.once, notifier=notifier)
+    except (ConfigError, SmtpConfigError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
+    except SmtpDeliveryError as exc:
+        print(f"Email delivery error: {exc}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 0
 

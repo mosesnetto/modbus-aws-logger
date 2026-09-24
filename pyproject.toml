@@ -18,4 +18,4 @@ dependencies = [
 modbus-aws-logger = "modbus_aws_logger:main"
 
 [tool.setuptools]
-py-modules = ["modbus_aws_logger"]
+py-modules = ["modbus_aws_logger", "email_sender"]

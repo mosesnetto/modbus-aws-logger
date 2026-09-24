@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Optional SMTP daily summary reports with STARTTLS enforcement, local state,
+  duplicate-send protection, and an explicit `--email-test` command.
+
 ## [0.1.0] - 2026-09-24
 
 ### Added

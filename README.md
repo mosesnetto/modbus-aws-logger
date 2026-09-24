@@ -34,6 +34,7 @@ This project replaces that fragile script with a small, testable foundation:
 - Modbus TCP holding-register scanning with a persistent connection.
 - Configurable register count, PLC unit, endpoint, and publish interval.
 - AWS IoT MQTT/TLS publishing with QoS 1.
+- Optional SMTP daily summary reports with duplicate-send protection.
 - Reconnect handling for both PLC and MQTT connections.
 - UTC timestamps and machine identity in every payload.
 - Environment-based configuration with no credentials in source control.
@@ -122,6 +123,21 @@ python modbus_aws_logger.py --once
 python modbus_aws_logger.py
 ```
 
+## SMTP daily reports
+
+SMTP is optional and disabled by default. When enabled, the logger sends one
+small UTC-day summary for the previous day after the next day starts. It
+includes publish/read/connection counts and the last error category; it does not
+attach raw register data or credentials.
+
+See [`docs/SMTP.md`](docs/SMTP.md) for Gmail app-password setup and testing.
+
+Test SMTP locally without contacting the PLC or AWS:
+
+```powershell
+python modbus_aws_logger.py --email-test
+```
+
 ## Payload shape
 
 The exact register names depend on the configured PLC block. The payload keeps
@@ -144,6 +160,8 @@ the raw register values visible and adds operational metadata:
 - `.env`, certificates, private keys, logs, and virtual environments are ignored.
 - The repository contains placeholders only; live AWS and PLC values stay local.
 - AWS private keys are never printed or uploaded.
+- SMTP reports use a local app password/provider secret and contain
+  operational counts only, not raw register values.
 - The pre-commit hook blocks common secret and certificate extensions.
 - Rotate an AWS IoT certificate immediately if it is ever exposed.
 - Keep the repository private until a public-release review is complete.
@@ -158,8 +176,10 @@ Current release: **0.1.0 private preview**
 - [x] Modbus TCP read loop
 - [x] AWS IoT MQTT/TLS publishing
 - [x] Offline configuration validation
+- [x] Safe demo mode
+- [x] Optional SMTP daily summary
 - [x] Unit tests and CI baseline
-- [ ] Modbus simulator/demo mode
+- [ ] Full Modbus simulator mode
 - [ ] Payload schema versioning
 - [ ] Metrics and health endpoint
 - [ ] Docker/systemd deployment profiles

@@ -3,6 +3,11 @@
 This roadmap describes intended engineering work, not guarantees or customer
 commitments.
 
+## Unreleased
+
+- Optional SMTP daily summary reports
+- SMTP test command and local runtime state
+
 ## 0.1.0 — Private preview
 
 - Secure environment configuration
