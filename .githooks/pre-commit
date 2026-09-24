@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+blocked=$(
+    git diff --cached --name-only \
+        | grep -E '(^|/)(\.env($|\.)|.*\.(pem|key|crt|cer|p12|pfx)$)' \
+        | grep -vE '(^|/)\.env\.example$' || true
+)
+if [ -n "$blocked" ]; then
+    echo "Blocked commit: secret/configuration files are not allowed:"
+    echo "$blocked"
+    exit 1
+fi
