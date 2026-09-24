@@ -1,50 +1,176 @@
 # Modbus AWS Logger
 
-Reads Modbus TCP holding registers and publishes JSON data to AWS IoT Core over
-MQTT/TLS. The program does not contain AWS credentials or private keys.
+**Industrial telemetry from PLC to cloud, without hardcoded secrets.**
+
+[![Status](https://img.shields.io/badge/status-private%20preview-6c5ce7)](https://github.com/mosesnetto/modbus-aws-logger)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)](https://www.python.org/)
+[![AWS IoT](https://img.shields.io/badge/cloud-AWS%20IoT-232f3f)](https://aws.amazon.com/iot-core/)
+[![Security](https://img.shields.io/badge/secrets-outside%20Git-2ea44f)](SECURITY.md)
+
+Modbus AWS Logger is a focused telemetry bridge for reading Modbus TCP data and
+publishing structured JSON to AWS IoT Core through MQTT/TLS. It is designed for
+prototypes, pilot deployments, and the early foundation of a future startup
+platform.
+
+> **Private preview:** This repository is intentionally private while the
+> deployment model, security controls, and product identity are being validated.
+
+![Modbus AWS Logger architecture](assets/brand.svg)
+
+## Why this exists
+
+Industrial teams often begin with a small Python script that:
+
+- hardcodes PLC addresses, certificates, and cloud endpoints;
+- reconnects badly after a network interruption;
+- makes every measurement a one-off copy/paste operation;
+- has no repeatable validation or deployment story.
+
+This project replaces that fragile script with a small, testable foundation:
+**configuration → Modbus read → JSON payload → AWS IoT MQTT publish**.
+
+## What is implemented
+
+- Modbus TCP holding-register scanning with a persistent connection.
+- Configurable register count, PLC unit, endpoint, and publish interval.
+- AWS IoT MQTT/TLS publishing with QoS 1.
+- Reconnect handling for both PLC and MQTT connections.
+- UTC timestamps and machine identity in every payload.
+- Environment-based configuration with no credentials in source control.
+- Offline `--check-config` validation mode.
+- One-sample `--once` mode for controlled commissioning.
+- Local virtual environment and reproducible pinned dependencies.
+- Pre-commit protection against common secret-file types.
+- GitHub Actions checks for compilation, tests, and dependency consistency.
+
+## Architecture
+
+```text
+             ┌──────────────────────┐
+             │  PLC / Modbus TCP    │
+             └──────────┬───────────┘
+                        │ holding registers
+                        v
+             ┌──────────────────────┐
+             │ Modbus AWS Logger    │
+             │ decode + timestamp  │
+             │ retry + validation   │
+             └──────────┬───────────┘
+                        │ JSON / MQTT QoS 1 / TLS
+                        v
+             ┌──────────────────────┐
+             │ AWS IoT Core         │
+             └──────────────────────┘
+```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries and
+failure behavior.
+
+## Quick start
+
+### 1. Open the project
+
+```powershell
+cd C:\Users\dell\Desktop\modbus-aws-logger
+code .
+```
+
+### 2. Create/use the environment
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Configure locally
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env` with your own endpoint, PLC address, topic, and certificate paths.
+The `.env` file is ignored by Git and must never be committed.
+
+### 4. Validate without connecting
+
+```powershell
+python modbus_aws_logger.py --check-config
+```
+
+### 5. Run one controlled sample
+
+Only after the endpoint, PLC, topic, and certificates have been verified:
+
+```powershell
+python modbus_aws_logger.py --once
+```
+
+### 6. Run continuously
+
+```powershell
+python modbus_aws_logger.py
+```
+
+## Payload shape
+
+The exact register names depend on the configured PLC block. The payload keeps
+the raw register values visible and adds operational metadata:
+
+```json
+{
+  "machine": "Machine_1",
+  "timestamp": 1760000000,
+  "datetime": "2026-09-24T12:00:00+00:00",
+  "registers": {
+    "R0": 12,
+    "R1": 34
+  }
+}
+```
 
 ## Security model
 
-- Configuration is loaded from environment variables and an ignored `.env` file.
-- Keep AWS certificates and private keys outside the repository.
-- `.env`, `*.pem`, `*.key`, `*.crt`, and `*.log` are ignored by Git.
-- The program never prints certificate contents or private-key contents.
-- A Git pre-commit hook blocks common certificate, key, and `.env` files.
-- Use a private GitHub repository unless the endpoint and PLC details may be public.
+- `.env`, certificates, private keys, logs, and virtual environments are ignored.
+- The repository contains placeholders only; live AWS and PLC values stay local.
+- AWS private keys are never printed or uploaded.
+- The pre-commit hook blocks common secret and certificate extensions.
+- Rotate an AWS IoT certificate immediately if it is ever exposed.
+- Keep the repository private until a public-release review is complete.
 
-## Windows setup
+Read [`SECURITY.md`](SECURITY.md) before handling production credentials.
 
-1. Install Python 3.11 or newer and Git.
-2. Open PowerShell in this folder.
-3. Create the environment:
+## Project status and roadmap
 
-   ```powershell
-   py -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   python -m pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
+Current release: **0.1.0 private preview**
 
-4. Copy `.env.example` to `.env` and fill in the local values.
-5. Put the AWS CA, client certificate, and private key in a protected folder
-   outside this repository.
-6. Validate without connecting:
+- [x] Secure environment-based configuration
+- [x] Modbus TCP read loop
+- [x] AWS IoT MQTT/TLS publishing
+- [x] Offline configuration validation
+- [x] Unit tests and CI baseline
+- [ ] Modbus simulator/demo mode
+- [ ] Payload schema versioning
+- [ ] Metrics and health endpoint
+- [ ] Docker/systemd deployment profiles
+- [ ] Public release and customer documentation
 
-   ```powershell
-   python modbus_aws_logger.py --check-config
-   ```
+The roadmap is intentionally concrete rather than promising unverified production
+claims. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-7. Run one live sample:
+## Contributing
 
-   ```powershell
-   python modbus_aws_logger.py --once
-   ```
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). Run the local checks before opening a
+pull request:
 
-8. Run continuously:
+```powershell
+python -m compileall -q .
+python -m unittest discover -s tests -v
+python -m pip check
+```
 
-   ```powershell
-   python modbus_aws_logger.py
-   ```
+## License decision
 
-Do not run the live mode until the PLC address, AWS endpoint, topic, and
-certificate paths have been verified.
+A public license will be selected before any public launch. Until then, this
+private repository is not a substitute for a legal license review.

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Modbus AWS Logger">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" x2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="24" fill="url(#bg)"/>
+  <circle cx="92" cy="150" r="46" fill="none" stroke="#22d3ee" stroke-width="8"/>
+  <path d="M70 150h44M92 128v44" stroke="#a78bfa" stroke-width="8" stroke-linecap="round"/>
+  <path d="M170 150h90" stroke="url(#line)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M270 150l20-22 20 44 20-44 20 44 20-22" fill="none" stroke="#22d3ee" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M370 150h100" stroke="url(#line)" stroke-width="8" stroke-linecap="round"/>
+  <rect x="500" y="106" width="126" height="88" rx="18" fill="#1e293b" stroke="#a78bfa" stroke-width="5"/>
+  <path d="M530 150h66M563 126v48" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+  <text x="690" y="142" fill="#f8fafc" font-family="Segoe UI,Arial,sans-serif" font-size="44" font-weight="700">MODBUS</text>
+  <text x="690" y="198" fill="#67e8f9" font-family="Segoe UI,Arial,sans-serif" font-size="44" font-weight="700">→ AWS IoT</text>
+  <text x="92" y="250" fill="#94a3b8" font-family="Segoe UI,Arial,sans-serif" font-size="20">Secure industrial telemetry foundation</text>
+</svg>

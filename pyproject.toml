@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modbus-aws-logger"
+version = "0.1.0"
+description = "Secure Modbus TCP telemetry bridge for AWS IoT"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt==2.1.0",
+    "pymodbus==3.13.1",
+    "python-dotenv==1.1.1",
+]
+
+[project.scripts]
+modbus-aws-logger = "modbus_aws_logger:main"
+
+[tool.setuptools]
+py-modules = ["modbus_aws_logger"]
