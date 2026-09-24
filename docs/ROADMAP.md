@@ -7,6 +7,7 @@ commitments.
 
 - Optional SMTP daily summary reports
 - SMTP test command and local runtime state
+- Raspberry Pi 5 edge deployment guide with Tailscale, xrdp, and Flask
 
 ## 0.1.0 — Private preview
 

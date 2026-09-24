@@ -12,6 +12,8 @@ Do not make the repository public until every applicable item is complete.
 - [ ] Test malformed PLC data and broker failure paths.
 - [ ] Test SMTP delivery with an app password and verify reports contain no raw
       register values or credentials.
+- [ ] Test the Raspberry Pi deployment from multiple authorized Tailscale
+      devices, including the Flask service and restricted xrdp/TCP/3389 access.
 - [ ] Add a sanitized demo/simulator mode.
 - [ ] Publish support and security contact details.
 - [ ] Create a release tag and changelog.

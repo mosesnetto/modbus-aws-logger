@@ -35,6 +35,8 @@ This project replaces that fragile script with a small, testable foundation:
 - Configurable register count, PLC unit, endpoint, and publish interval.
 - AWS IoT MQTT/TLS publishing with QoS 1.
 - Optional SMTP daily summary reports with duplicate-send protection.
+- Documented Tailscale private connectivity for PLC/site access and an optional
+  companion Flask service.
 - Reconnect handling for both PLC and MQTT connections.
 - UTC timestamps and machine identity in every payload.
 - Environment-based configuration with no credentials in source control.
@@ -138,6 +140,23 @@ Test SMTP locally without contacting the PLC or AWS:
 python modbus_aws_logger.py --email-test
 ```
 
+## Tailscale and Flask access
+
+The reference deployment uses a **Raspberry Pi 5 with 4 GB RAM** as the site
+edge host. It runs the Modbus AWS Logger, a separate Flask UI/API, the
+open-source xrdp remote-desktop service, and Tailscale. Multiple authorized
+devices join the Tailscale network to access the Flask service and administer
+the Pi remotely.
+
+Tailscale provides the private VPN path; xrdp provides remote desktop; Flask
+provides the browser UI/API; and AWS IoT MQTT/TLS remains the logger-to-cloud
+connection. Tailscale does not replace AWS IoT, and xrdp is not an MQTT broker.
+
+See [`docs/TAILSCALE.md`](docs/TAILSCALE.md) for the Raspberry Pi topology,
+subnet routing, Tailscale Serve, xrdp port 3389, access policies, and the
+recommended Flask deployment pattern. The repository documents this companion
+service but does not include or start the separate Flask application.
+
 ## Payload shape
 
 The exact register names depend on the configured PLC block. The payload keeps
@@ -162,6 +181,8 @@ the raw register values visible and adds operational metadata:
 - AWS private keys are never printed or uploaded.
 - SMTP reports use a local app password/provider secret and contain
   operational counts only, not raw register values.
+- Tailscale is used for private site/operator connectivity; any Flask service
+  must remain tailnet-only and enforce its own authentication.
 - The pre-commit hook blocks common secret and certificate extensions.
 - Rotate an AWS IoT certificate immediately if it is ever exposed.
 - Keep the repository private until a public-release review is complete.
