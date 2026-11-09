@@ -1,69 +1,135 @@
-# Architecture
+# Modbus AWS Logger — Architecture & Design
 
-## Design goals
+## Problem
 
-1. Keep credentials and infrastructure details outside source control.
-2. Make the PLC and cloud paths independently retryable.
-3. Preserve raw values so later analytics can evolve without losing data.
-4. Make offline validation possible before touching a production network.
+Industrial sites need to stream PLC data (Modbus TCP) to AWS IoT Core for cloud telemetry, dashboards, and alerting. Challenges:
+- Unreliable networks (factory Wi-Fi, 4G)
+- OT/IT security boundaries (no direct PLC-to-cloud)
+- Device provisioning at scale
+- Sales demos without live PLCs
 
-## Data path
+## Solution
 
-```text
-Environment / local .env
-          │
-          ▼
-     Configuration
-          │
-          ▼
-  Modbus TCP client ───── failure ──► reconnect/backoff
-          │
-          ▼
-   JSON payload builder
-          │
-          ▼
- AWS IoT MQTT/TLS client ─ failure ──► reconnect/backoff
-          │
-          ▼
-       AWS IoT topic
+A Python service running on Raspberry Pi (or any Linux edge gateway) that:
+1. Reads Modbus TCP registers from PLCs
+2. Publishes JSON telemetry to AWS IoT Core via MQTT/TLS
+3. Handles reconnects, buffering, and backoff automatically
+4. Supports mTLS device authentication (X.509 certs)
+5. Includes `--demo` mode for safe offline demonstrations
+
+## Architecture
+
+```
+┌─────────────┐     Modbus TCP      ┌──────────────────┐     MQTT/TLS      ┌──────────────────┐
+│  PLC/RTU    │ ◄─────────────────► │  Edge Gateway    │ ────────────────► │   AWS IoT Core   │
+│  (Omron,    │   Register reads    │  (Raspberry Pi   │   JSON telemetry  │  (MQTT broker,   │
+│  Siemens,   │   Polling interval  │   5 / CM4 / x86) │   + device shadow │   rules engine)  │
+│  A-B)       │                     │                  │                   │                  │
+└─────────────┘                     └──────────────────┘                   └────────┬─────────┘
+                                                                                   │
+                                                                                   ▼
+                                                                        ┌──────────────────┐
+                                                                        │  Downstream      │
+                                                                        │  - IoT Analytics │
+                                                                        │  - SiteWise      │
+                                                                        │  - Timestream    │
+                                                                        │  - Lambda/Rule   │
+                                                                        │    actions       │
+                                                                        └──────────────────┘
 ```
 
-## Reporting path
+## Key Components
 
-Successful publishes and categorized failures are written to small local JSON
-state files under `runtime/`. When SMTP is enabled, a background reporter sends
-one deduplicated summary for the previous UTC day. The reporting path is
-independent of the MQTT payload and never copies raw register values into the
-message.
+### 1. Modbus Client (`modbus_aws_logger.py`)
+- `pymodbus` async TCP client with configurable polling interval
+- Register map defined in `.env` (address, count, scale, offset, name, unit)
+- Automatic reconnect with exponential backoff (1s → 60s max)
+- Read timeouts prevent hanging on unresponsive PLCs
 
-## Companion Flask service
+### 2. MQTT Publisher
+- `awsiotsdk` MQTT connection with mTLS (cert + key + CA)
+- QoS 1 for telemetry, QoS 0 for heartbeats
+- Automatic reconnect with session persistence
+- Offline message buffering (configurable max queue size)
 
-The reference edge host is a Raspberry Pi 5 with 4 GB RAM. A separate Flask
-UI/API may listen on localhost and be shared only through Tailscale Serve, or it
-may listen on a Tailscale address with a restricted tailnet policy. The same
-host may provide xrdp remote desktop on TCP/3389. These services are not part
-of the logger process and do not replace AWS IoT MQTT/TLS. The web service must
-provide its own authentication, authorization, CSRF protection, and secret
-handling.
+### 3. Configuration (`config.py`)
+- All settings via `.env` file (never committed)
+- Environment-based: `dev`, `staging`, `prod`
+- Validation on startup (`--check-config`)
 
-## Trust boundaries
+### 4. Demo Mode (`--demo`)
+```bash
+python modbus_aws_logger.py --demo
+```
+- Generates realistic synthetic register values
+- No network connections required
+- Perfect for sales demos, CI, development
 
-- The PLC is an untrusted network endpoint. The client uses a bounded timeout.
-- AWS certificates are local files and are never committed.
-- SMTP credentials are local environment values and are never committed.
-- SMTP reports contain counts/status only, not raw register values.
-- Tailscale protects private operator/site paths; a companion Flask service is
-  still responsible for application authentication and authorization.
-- The repository is private during the preview phase.
-- Logs may contain operational values and must remain local unless explicitly
-  reviewed for disclosure.
+### 5. Systemd Service
+```ini
+# /etc/systemd/system/modbus-aws-logger.service
+[Unit]
+Description=Modbus to AWS IoT Logger
+After=network-online.target
+Wants=network-online.target
 
-## Failure behavior
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/modbus-aws-logger
+EnvironmentFile=/opt/modbus-aws-logger/.env
+ExecStart=/opt/modbus-aws-logger/.venv/bin/python modbus_aws_logger.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
-- PLC connection failure returns no fabricated measurement.
-- MQTT failure is retried without stopping the process.
-- A failed cycle is logged and the loop continues.
-- SMTP delivery failures are logged and retried without stopping telemetry.
-- `--check-config` never opens a network connection.
-- `--demo` returns a safe sample payload without configuration or network access.
-- `--once` performs exactly one read/publish cycle and then exits.
+[Install]
+WantedBy=multi-user.target
+```
+
+## Security
+
+| Layer | Implementation |
+|-------|----------------|
+| **Device Auth** | X.509 certs per device (AWS IoT thing certificates) |
+| **Transport** | MQTT over TLS 1.2+ (ALPN `x-amzn-mqtt-ca`) |
+| **Secrets** | Certs/keys in `/opt/modbus-aws-logger/certs/` (chmod 600) |
+| **Network** | Edge gateway in DMZ / separate VLAN; PLC only talks to gateway |
+| **Least Privilege** | IoT policy: `iot:Publish` to `dt/<thingname>/telemetry` only |
+
+## Deployment Checklist
+
+- [ ] Provision AWS IoT Thing + certificates
+- [ ] Copy certs to edge device (`certs/thing.cert.pem`, `certs/thing.private.key`, `certs/AmazonRootCA1.pem`)
+- [ ] Configure `.env` with PLC IPs, register map, AWS endpoint
+- [ ] Test with `--check-config` and `--demo`
+- [ ] Install systemd service, enable + start
+- [ ] Verify in AWS IoT Console → Test → Subscribe to `dt/+/telemetry`
+- [ ] Set up CloudWatch alarms on missing heartbeats
+
+## Scaling to 100+ Devices
+
+1. **Fleet Provisioning** — Use AWS IoT Fleet Provisioning with claim certificates
+2. **Device Groups** — Tag things by site/line for targeted rule actions
+3. **Central Config** — Store register maps in AWS IoT Device Shadow or S3; edge pulls on startup
+4. **Monitoring** — CloudWatch metric `aws.iot.ConnectedDevices` + custom `modbus.read.errors`
+
+## Files in This Repo
+
+| File | Purpose |
+|------|---------|
+| `modbus_aws_logger.py` | Main service (Modbus + MQTT + reconnect logic) |
+| `config.py` | Configuration loading & validation |
+| `sending_to_aws.py` | Minimal standalone publish example |
+| `email_sender.py` | Daily summary reporter (SMTP) |
+| `run.ps1` | Windows dev launcher |
+| `requirements.txt` | `pymodbus`, `awsiotsdk`, `python-dotenv` |
+| `.env.example` | Template for all config variables |
+| `docs/ARCHITECTURE.md` | This file |
+| `docs/TAILSCALE.md` | Remote access via Tailscale Serve |
+| `docs/SMTP.md` | Email reporter setup |
+
+## License
+
+MIT — see [LICENSE](../LICENSE)
